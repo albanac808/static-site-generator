@@ -81,113 +81,60 @@ def adjust_image_paths(html_content):
     return str(soup)
 
 
-def generate_pages_recursive(dir_path_content, template_path, dest_dir_path):
+def generate_pages_recursive(dir_path_content, template_path, dest_dir_path, base_path):
     """
-    Recursively generate HTML pages from markdown files in a directory.
+    Recursively generates HTML pages for all Markdown files in the content directory.
+    The generated pages are written to the docs directory, maintaining the directory structure.
     """
-    # Ensure destination directory exists
-    os.makedirs(dest_dir_path, exist_ok=True)
+    for root, dirs, files in os.walk(dir_path_content):
+        for file in files:
+            if file.endswith(".md"):  # Process only Markdown files
+                # Full path to the Markdown file
+                markdown_path = os.path.join(root, file)
+                
+                # Determine the relative path from the content directory
+                relative_path = os.path.relpath(markdown_path, dir_path_content)
+                
+                # Replace .md with .html for the output file
+                output_file = relative_path.replace(".md", ".html")
+                
+                # Full path to the output HTML file in the docs directory
+                output_path = os.path.join(dest_dir_path, output_file)
+                
+                # Ensure the destination directory exists
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
+                # Generate the HTML page with the base path
+                print(f"Generating page for {markdown_path} -> {output_path}")
+                generate_page(markdown_path, template_path, output_path, base_path)
+
+
+def generate_page(content_path, template_path, output_path, base_path):
+    """
+    Generates an HTML page from a Markdown file using a template.
+    Replaces href="/ and src="/ with href="{BASEPATH}" and src="{BASEPATH}".
+    """
+    # Read the Markdown content
+    with open(content_path, "r") as content_file:
+        markdown_content = content_file.read()
+
+    # Read the template
+    with open(template_path, "r") as template_file:
+        template = template_file.read()
+
+    # Convert Markdown to HTML
+    from markdowntohtmlnode import markdown_to_html_node
+    html_node = markdown_to_html_node(markdown_content)
+    html_content = html_node.to_html()
+
+    # Replace placeholders in the template
+    html_output = template.replace("{{ Content }}", html_content)
+    html_output = html_output.replace("{{ Title }}", os.path.basename(content_path).replace(".md", ""))
     
-    # List all entries in the content directory
-    for entry in os.listdir(dir_path_content):
-        entry_path = os.path.join(dir_path_content, entry)
-        
-        # If the entry is a file and it's a markdown file
-        if os.path.isfile(entry_path) and entry.endswith('.md'):
-            # Get the relative path without the .md extension
-            rel_path = os.path.relpath(entry_path, dir_path_content)
-            base_name = os.path.splitext(rel_path)[0]
-            
-            # Special case for index.md
-            if base_name == 'index':
-                dest_path = os.path.join(dest_dir_path, 'index.html')
-            else:
-                # Create the destination path, keeping the same directory structure
-                # but changing the extension from .md to .html
-                dest_path = os.path.join(dest_dir_path, base_name + '.html')
-            
-            # Generate the HTML page
-            generate_page(entry_path, template_path, dest_path)
-            
-        # If the entry is a directory, recursively process it
-        elif os.path.isdir(entry_path):
-            # Create the corresponding directory in the destination path
-            sub_dest_dir = os.path.join(dest_dir_path, entry)
-            
-            # Recursively generate pages in the subdirectory
-            generate_pages_recursive(entry_path, template_path, sub_dest_dir)
+    # Replace href="/ and src="/ with the base path
+    html_output = html_output.replace('href="/', f'href="{base_path}')
+    html_output = html_output.replace('src="/', f'src="{base_path}')
 
-
-def generate_page(from_path, template_path, dest_path):
-    """
-    Generate an HTML page from markdown using the templates.
-
-    Args:
-        from_path (str): Path to the markdown file.
-        template_path (str): Path to the HTML template.
-        dest_path (str): Path to save the generated output.
-    """
-    print(f"Generating page from {from_path} to {dest_path}")
-
-    # Ensure the directory exists before writing to it
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-    # Read the markdown file
-    with open(from_path, "r") as f:
-        md_content = f.read()
-
-    # Extract title from the first line if it's a heading
-    title = "Untitled"
-    if md_content.startswith('# '):
-        title_line = md_content.split('\n', 1)[0]
-        title = title_line.lstrip('# ').strip()
-
-    # Convert markdown to HTML
-    html_body = markdown.markdown(md_content, extensions=['fenced_code', 'tables'])
-
-    # Replace HTML5 tags with HTML4 tags for test compatibility
-    html_body = html_body.replace("<em>", "<i>").replace("</em>", "</i>")
-    html_body = html_body.replace("<strong>", "<b>").replace("</strong>", "</b>")
-
-    # Fix blockquote formatting - remove newlines inside blockquotes
-    html_body = re.sub(r'<blockquote>\s*\n\s*', '<blockquote>', html_body)
-    
-    # Direct hack for the blockquote test
-    html_body = html_body.replace('<blockquote>\n"I am in fact a Hobbit in all but size."', 
-                                 '<blockquote>"I am in fact a Hobbit in all but size.')
-    
-    # Adjust image paths
-    html_body = adjust_image_paths(html_body)
-
-    # Combine with the template if provided
-    if os.path.exists(template_path):
-        with open(template_path, "r") as f:
-            template_content = f.read()
-        complete_html = template_content.replace("{{ Content }}", html_body)
-        complete_html = complete_html.replace("{{ Title }}", title)
-    else:
-        complete_html = html_body
-
-    complete_html = complete_html.replace(
-        '<blockquote>\n"I am in fact a Hobbit in all but size."', 
-        '<blockquote>"I am in fact a Hobbit in all but size.'
-    )
-    complete_html = complete_html.replace(
-        '<blockquote>\n"I am in fact a Hobbit in all but size." -- J.R.R. Tolkien', 
-        '<blockquote>"I am in fact a Hobbit in all but size.'
-    )
-
-    # Add before writing to file
-    print("DEBUGGING BLOCKQUOTE:")
-    if '<blockquote>' in complete_html:
-        start = complete_html.find('<blockquote>')
-        end = complete_html.find('</blockquote>', start) + len('</blockquote>')
-        print(complete_html[start:end])
-
-    # Add these two lines right before writing to file
-    complete_html = complete_html.replace("<blockquote><p>", "<blockquote>")
-    complete_html = complete_html.replace("</p></blockquote>", "</blockquote>")
-
-    # Write the resulting HTML to the destination
-    with open(dest_path, "w") as f:
-        f.write(complete_html)
+    # Write the output HTML file
+    with open(output_path, "w") as output_file:
+        output_file.write(html_output)

@@ -1,25 +1,30 @@
 import os
 import shutil
-from utils import copy_directory_recursive, generate_page, generate_pages_recursive
+import sys
+from utils import copy_directory_recursive, generate_pages_recursive
 
 def main():
     # Define paths
+    source_dir = "static"
+    destination_dir = "docs"  # Change to "docs" for GitHub Pages
     content_dir = "content"
     template_path = "template.html"
-    public_dir = "public"
-    
-    # Clear the public directory if it exists
-    if os.path.exists(public_dir):
-        shutil.rmtree(public_dir)
-    
-    # Create a fresh public directory
-    os.makedirs(public_dir)
-    
-    # Copy static assets
-    copy_directory_recursive("static", public_dir)
-    
-    # Generate all pages recursively
-    generate_pages_recursive(content_dir, template_path, public_dir)
+
+    # Get the base path from the command-line argument or default to "/"
+    base_path = sys.argv[1] if len(sys.argv) > 1 else "/"
+
+    # Step 1: Clear the docs directory
+    if os.path.exists(destination_dir):
+        print(f"Clearing the docs directory: {destination_dir}")
+        shutil.rmtree(destination_dir)
+
+    # Step 2: Copy static files to the docs directory
+    print(f"Copying static files from {source_dir} to {destination_dir}")
+    copy_directory_recursive(source_dir, destination_dir)
+
+    # Step 3: Generate HTML pages recursively with the base path
+    print(f"Generating HTML pages from {content_dir} with base path: {base_path}")
+    generate_pages_recursive(content_dir, template_path, destination_dir, base_path)
 
 if __name__ == "__main__":
     main()
