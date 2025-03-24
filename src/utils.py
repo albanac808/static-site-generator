@@ -135,6 +135,6 @@ def generate_page(content_path, template_path, output_path, base_path):
     html_output = html_output.replace('href="/', f'href="{base_path}')
     html_output = html_output.replace('src="/', f'src="{base_path}')
 
-    # Write the output HTML file
+    # Write the output HTML file here
     with open(output_path, "w") as output_file:
         output_file.write(html_output)
